@@ -329,10 +329,21 @@ textarea{resize:vertical;min-height:56px}
   </div>
   <div id="adminPanelWrap" style="display:none">
     <div class="admin-panel">
-      <div class="admin-header">
-        <div class="admin-title">⚙ <span>관리자</span> 패널</div>
-        <button class="logout-btn" onclick="adminLogout()">로그아웃</button>
-      </div>
+
+<div class="admin-header">
+  <div>
+    <div class="admin-title">⚙ <span>관리자</span> 패널</div>
+    <div style="margin-top:10px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <span style="font-size:12px; color:var(--text3)">관리 날짜</span>
+      <input type="date" id="adminDate" onchange="changeAdminDate(this.value)"
+             style="width:auto; min-width:170px; padding:8px 12px;">
+      <span style="font-size:12px; color:var(--accent)" id="adminDateLabel"></span>
+    </div>
+  </div>
+  <button class="logout-btn" onclick="adminLogout()">로그아웃</button>
+</div>
+
+
       <div class="admin-section">
         <div class="admin-section-title">⚾ 경기 편집</div>
         <div id="matchEditorList"></div>
@@ -362,18 +373,8 @@ textarea{resize:vertical;min-height:56px}
 <!-- Firebase SDK (CDN) -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, set, get, onValue, remove, update }
+import { getDatabase, ref, set, onValue, remove, update }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
-
-// ════════════════════════════════════════════════════
-// ⚙️  여기에 Firebase 설정을 입력하세요
-//     Firebase 콘솔 → 프로젝트 설정 → 웹 앱 → firebaseConfig
-// ════════════════════════════════════════════════════
-const FIREBASE_CONFIG = {
-  databaseURL: "https://kbo-prediction-72dfe-default-rtdb.firebaseio.com"
-};
-  // apiKey, authDomain 등은 Realtime Database만 쓸 경우 databaseURL만 있어도 됩니다
-// ════════════════════════════════════════════════════
 
 const ADMIN_PW = '1234';
 const TEAM_LIST = ['기아','한화','롯데','삼성','LG','두산','키움','KT','SSG','NC'];
@@ -387,6 +388,8 @@ let submitted = false;
 let myName = '';
 let mySubmittedPicks = {};
 let unsubscribers = [];
+
+let selectedDate = getTodayInputValue();
 
 // ── Firebase 초기화
 function initFirebase(dbUrl) {
@@ -410,31 +413,57 @@ function setConnStatus(state) {
   document.getElementById('connText').textContent = texts[state] || '';
 }
 
-// ── 날짜 키
-function todayKey() {
+// ── 날짜 관련
+function getTodayInputValue() {
   const d = new Date();
-  return `kbo_${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
-function todayStr() {
-  const d = new Date();
-  const days=['일','월','화','수','목','금','토'];
+
+function parseDateInput(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function currentKey() {
+  return `kbo_${selectedDate}`;
+}
+
+function selectedDateStr() {
+  const d = parseDateInput(selectedDate);
+  const days = ['일','월','화','수','목','금','토'];
   return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 (${days[d.getDay()]})`;
+}
+
+function syncDateUI() {
+  const heroDate = document.getElementById('heroDate');
+  if (heroDate) heroDate.textContent = selectedDateStr();
+
+  const adminDate = document.getElementById('adminDate');
+  if (adminDate) adminDate.value = selectedDate;
+
+  const adminDateLabel = document.getElementById('adminDateLabel');
+  if (adminDateLabel) adminDateLabel.textContent = selectedDateStr();
 }
 
 // ── 실시간 데이터 구독
 function listenData() {
-  if(!db) return;
-  const key = todayKey();
+  if (!db) return;
 
-  // 경기 데이터
+  unsubscribers.forEach(unsub => {
+    try { unsub(); } catch(e) {}
+  });
+  unsubscribers = [];
+
+  const key = currentKey();
+
   const matchRef = ref(db, `${key}/matches`);
-  onValue(matchRef, snap => {
+  const unsubMatches = onValue(matchRef, snap => {
     const data = snap.val();
-    if(data && Array.isArray(data) && data.length > 0) {
+
+    if (data && Array.isArray(data) && data.length > 0) {
       matches = data;
-    } else if(!data) {
-      // 오늘 처음이면 기본 경기 세팅
-      if(matches.length === 0) {
+    } else if (!data) {
+      if (matches.length === 0) {
         matches = [
           {id:0,team1:'기아',emoji1:'🐅',pitcher1:'',team2:'한화',emoji2:'🔥',pitcher2:'',time:'18:30',stadium:'광주-기아 챔피언스 필드',result:null},
           {id:1,team1:'롯데',emoji1:'🦅',pitcher1:'',team2:'삼성',emoji2:'⚡',pitcher2:'',time:'18:30',stadium:'사직구장',result:null},
@@ -442,11 +471,18 @@ function listenData() {
         ];
         saveMatchesToDB();
       }
+    } else {
+      matches = [];
     }
+
     renderMatches();
     document.getElementById('statMatches').textContent = matches.length;
     document.getElementById('loadingOverlay').classList.add('hidden');
     setConnStatus('online');
+
+    if (document.getElementById('adminPanelWrap').style.display !== 'none') {
+      renderAdminPanel();
+    }
   }, err => {
     console.error(err);
     setConnStatus('offline');
@@ -454,31 +490,36 @@ function listenData() {
     toast('Firebase 연결 실패. databaseURL을 확인해주세요.','error');
   });
 
-  // 랭킹/참여자 데이터
+  unsubscribers.push(unsubMatches);
+
   const rankRef = ref(db, `${key}/participants`);
-  onValue(rankRef, snap => {
+  const unsubRanks = onValue(rankRef, snap => {
     rankings = snap.val() || {};
     const count = Object.keys(rankings).length;
     document.getElementById('statParticipants').textContent = count;
 
-    // 내 점수 업데이트 (결과 반영 후)
-    if(myName && rankings[myName]) {
+    if (myName && rankings[myName]) {
       const me = rankings[myName];
       mySubmittedPicks = me.picks || {};
     }
 
     renderRanking();
     renderHistory();
-    if(document.getElementById('adminPanelWrap').style.display !== 'none') {
+
+    if (document.getElementById('adminPanelWrap').style.display !== 'none') {
       renderAdminUserList();
     }
   });
+
+  unsubscribers.push(unsubRanks);
+
+  syncDateUI();
 }
 
 // ── 경기 DB 저장
 function saveMatchesToDB() {
-  if(!db) return;
-  set(ref(db, `${todayKey()}/matches`), matches);
+  if (!db) return;
+  set(ref(db, `${currentKey()}/matches`), matches);
 }
 
 // ── UTILS
@@ -487,23 +528,24 @@ function toast(msg, type='') {
   t.textContent = msg; t.className = 'toast show ' + type;
   setTimeout(() => t.className = 'toast', 2600);
 }
+
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   const map = {predict:0,ranking:1,history:2,share:3,admin:4};
   document.querySelectorAll('.nav-tab')[map[id]].classList.add('active');
-  if(id==='ranking') renderRanking();
-  if(id==='history') renderHistory();
-  if(id==='share') initShare();
-  if(id==='admin' && document.getElementById('adminPanelWrap').style.display!=='none') renderAdminPanel();
+  if (id === 'ranking') renderRanking();
+  if (id === 'history') renderHistory();
+  if (id === 'share') initShare();
+  if (id === 'admin' && document.getElementById('adminPanelWrap').style.display !== 'none') renderAdminPanel();
 }
+
 function updateAvatar() {
   const v = document.getElementById('userName').value.trim();
   document.getElementById('userAvatarLetter').textContent = v ? v[0] : '?';
 }
 
-// 전역으로 노출 (onclick 사용)
 window.showPage = showPage;
 window.updateAvatar = updateAvatar;
 
@@ -511,13 +553,15 @@ window.updateAvatar = updateAvatar;
 function getPickRatio(matchId) {
   const counts = { t1: 0, t2: 0 };
   const m = matches.find(x => x.id === matchId);
-  if(!m) return counts;
+  if (!m) return counts;
+
   Object.values(rankings).forEach(r => {
-    if(r.picks && r.picks[matchId]) {
-      if(r.picks[matchId] === m.team1) counts.t1++;
-      else if(r.picks[matchId] === m.team2) counts.t2++;
+    if (r.picks && r.picks[matchId]) {
+      if (r.picks[matchId] === m.team1) counts.t1++;
+      else if (r.picks[matchId] === m.team2) counts.t2++;
     }
   });
+
   return counts;
 }
 
@@ -526,26 +570,27 @@ function renderMatches() {
   document.getElementById('matchList').innerHTML = matches.map(m => {
     const ratio = getPickRatio(m.id);
     const total = ratio.t1 + ratio.t2;
-    const pct1 = total ? Math.round(ratio.t1/total*100) : 50;
-    const pct2 = total ? Math.round(ratio.t2/total*100) : 50;
+    const pct1 = total ? Math.round(ratio.t1 / total * 100) : 50;
+    const pct2 = total ? Math.round(ratio.t2 / total * 100) : 50;
+
     return `
-    <div class="match-card ${picks[m.id]?'has-pick':''}" id="mc-${m.id}">
+    <div class="match-card ${picks[m.id] ? 'has-pick' : ''}" id="mc-${m.id}">
       <div class="match-meta">
-        <span class="match-badge">경기 ${m.id+1}</span>
+        <span class="match-badge">경기 ${m.id + 1}</span>
         <span class="match-stadium">${m.stadium}</span>
         <span class="match-time">${m.time}</span>
       </div>
       <div class="teams-grid">
-        <div class="team-pick ${picks[m.id]===m.team1?'selected':''}" onclick="pick(${m.id},'${m.team1}')">
+        <div class="team-pick ${picks[m.id] === m.team1 ? 'selected' : ''}" onclick="pick(${m.id},'${m.team1}')">
           <div class="team-emoji">${m.emoji1}</div>
           <div class="team-nm">${m.team1}</div>
-          <div class="pitcher-info">${m.pitcher1 ? '선발 '+m.pitcher1 : '선발 미정'}</div>
+          <div class="pitcher-info">${m.pitcher1 ? '선발 ' + m.pitcher1 : '선발 미정'}</div>
         </div>
         <div class="vs-col"><div class="vs-circle">VS</div></div>
-        <div class="team-pick ${picks[m.id]===m.team2?'selected':''}" onclick="pick(${m.id},'${m.team2}')">
+        <div class="team-pick ${picks[m.id] === m.team2 ? 'selected' : ''}" onclick="pick(${m.id},'${m.team2}')">
           <div class="team-emoji">${m.emoji2}</div>
           <div class="team-nm">${m.team2}</div>
-          <div class="pitcher-info">${m.pitcher2 ? '선발 '+m.pitcher2 : '선발 미정'}</div>
+          <div class="pitcher-info">${m.pitcher2 ? '선발 ' + m.pitcher2 : '선발 미정'}</div>
         </div>
       </div>
       ${total > 0 ? `
@@ -560,14 +605,17 @@ function renderMatches() {
       </div>` : ''}
     </div>`;
   }).join('');
+
   updatePickCount();
   document.getElementById('statMatches').textContent = matches.length;
 }
+
 window.pick = function(matchId, team) {
-  if(submitted) return;
+  if (submitted) return;
   picks[matchId] = team;
   renderMatches();
 };
+
 function updatePickCount() {
   const n = Object.keys(picks).length;
   document.getElementById('matchCountLabel').textContent = `${n} / ${matches.length}`;
@@ -576,21 +624,25 @@ function updatePickCount() {
 
 // ── SUBMIT
 window.submitPrediction = async function() {
-  if(!db) { toast('Firebase가 연결되지 않았어요','error'); return; }
+  if (!db) { toast('Firebase가 연결되지 않았어요','error'); return; }
+
   const name = document.getElementById('userName').value.trim();
-  if(!name) { toast('이름을 먼저 입력해주세요!','error'); return; }
-  if(Object.keys(picks).length < matches.length) { toast(`${matches.length-Object.keys(picks).length}경기 예측이 더 필요해요`,'error'); return; }
+  if (!name) { toast('이름을 먼저 입력해주세요!','error'); return; }
+  if (Object.keys(picks).length < matches.length) {
+    toast(`${matches.length - Object.keys(picks).length}경기 예측이 더 필요해요`,'error');
+    return;
+  }
 
   myName = name;
-  mySubmittedPicks = {...picks};
+  mySubmittedPicks = { ...picks };
   submitted = true;
   document.getElementById('submitBtn').disabled = true;
   document.getElementById('submitBtn').textContent = '✓ 제출 완료';
 
-  // Firebase에 저장
   const existing = rankings[name];
   const correct = existing ? existing.correct : 0;
-  await set(ref(db, `${todayKey()}/participants/${name}`), {
+
+  await set(ref(db, `${currentKey()}/participants/${name}`), {
     name,
     correct,
     total: matches.length,
@@ -598,7 +650,7 @@ window.submitPrediction = async function() {
     submittedAt: Date.now()
   });
 
-  toast(name+'님의 예측이 제출되었어요!','success');
+  toast(name + '님의 예측이 제출되었어요!','success');
   setTimeout(() => showPage('history'), 1800);
 };
 
@@ -606,25 +658,30 @@ window.submitPrediction = async function() {
 function renderRanking() {
   const el = document.getElementById('rankList');
   const list = Object.values(rankings);
-  if(list.length === 0) {
-    el.innerHTML='<div class="rank-empty">아직 참여자가 없어요<br><span style="font-size:12px;margin-top:4px;display:block">예측을 제출하면 랭킹에 등록돼요</span></div>';
+
+  if (list.length === 0) {
+    el.innerHTML = '<div class="rank-empty">아직 참여자가 없어요<br><span style="font-size:12px;margin-top:4px;display:block">예측을 제출하면 랭킹에 등록돼요</span></div>';
     return;
   }
-  const sorted = [...list].sort((a,b) => {
-    const pa = a.total ? a.correct/a.total : 0;
-    const pb = b.total ? b.correct/b.total : 0;
+
+  const sorted = [...list].sort((a, b) => {
+    const pa = a.total ? a.correct / a.total : 0;
+    const pb = b.total ? b.correct / b.total : 0;
     return pb !== pa ? pb - pa : b.correct - a.correct;
   });
-  const posLabel = i => ['🥇','🥈','🥉'][i] ?? (i+1);
+
+  const posLabel = i => ['🥇','🥈','🥉'][i] ?? (i + 1);
   const posClass = i => ['p1','p2','p3'][i] ?? '';
-  el.innerHTML = sorted.map((r,i) => {
-    const pct = r.total ? Math.round(r.correct/r.total*100) : 0;
+
+  el.innerHTML = sorted.map((r, i) => {
+    const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
     const isMe = r.name === myName;
-    return `<div class="rank-row ${isMe?'me':''}">
+
+    return `<div class="rank-row ${isMe ? 'me' : ''}">
       <div class="rank-pos ${posClass(i)}">${posLabel(i)}</div>
       <div class="rank-avatar-sm">${r.name[0]}</div>
       <div class="rank-info">
-        <div class="rank-name">${r.name}${isMe?' 👈':''}</div>
+        <div class="rank-name">${r.name}${isMe ? ' 👈' : ''}</div>
         <div class="rank-detail">${r.correct}개 적중 · ${r.total}경기</div>
       </div>
       <div class="rank-right">
@@ -642,41 +699,52 @@ function renderHistory() {
   const myPicks = me ? (me.picks || {}) : mySubmittedPicks;
   const isSubmitted = submitted || !!me;
 
-  if(!isSubmitted || Object.keys(myPicks).length === 0) {
-    el.innerHTML='<div class="history-empty"><div class="big-icon">📋</div><p>아직 제출한 예측이 없어요</p><p style="font-size:12px;margin-top:6px">예측하기 탭에서 오늘 경기를 선택해보세요</p></div>';
+  if (!isSubmitted || Object.keys(myPicks).length === 0) {
+    el.innerHTML = '<div class="history-empty"><div class="big-icon">📋</div><p>아직 제출한 예측이 없어요</p><p style="font-size:12px;margin-top:6px">예측하기 탭에서 오늘 경기를 선택해보세요</p></div>';
     return;
   }
+
   const rows = matches.map(m => {
     const myPick = myPicks[m.id];
-    if(!myPick) return '';
+    if (!myPick) return '';
+
     let lbl = '<span class="pick-result pending">결과 대기</span>';
-    if(m.result) {
+    if (m.result) {
       const ok = m.result === myPick;
-      lbl = `<span class="pick-result ${ok?'win':'loss'}">${ok?'✓ 적중':'✗ 오답'}</span>`;
+      lbl = `<span class="pick-result ${ok ? 'win' : 'loss'}">${ok ? '✓ 적중' : '✗ 오답'}</span>`;
     }
+
     return `<div class="history-pick">
       <span class="pick-match">${m.team1} vs ${m.team2}</span>
       <span class="pick-team">${myPick}</span>
       ${lbl}
     </div>`;
   }).join('');
-  el.innerHTML = `<div class="history-card"><div class="history-date">${todayStr()} 예측</div>${rows}</div>`;
+
+  el.innerHTML = `<div class="history-card"><div class="history-date">${selectedDateStr()} 예측</div>${rows}</div>`;
 }
 
 // ── SHARE
 function initShare() {
   document.getElementById('currentUrl').textContent = location.href;
-  if(db) {
-    document.getElementById('firebaseStatusInfo').style.display = 'block';
-  } else {
-    document.getElementById('firebaseStatusInfo').style.display = 'none';
-  }
+  document.getElementById('firebaseStatusInfo').style.display = db ? 'block' : 'none';
 }
+
 window.copyUrl = function() {
   const url = location.href;
-  if(navigator.clipboard) { navigator.clipboard.writeText(url).then(()=>toast('링크가 복사되었어요!','success')); }
-  else { const ta=document.createElement('textarea');ta.value=url;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);toast('링크가 복사되었어요!','success'); }
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(() => toast('링크가 복사되었어요!','success'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('링크가 복사되었어요!','success');
+  }
 };
+
 window.shareKakao = function() {
   window.open(`https://sharer.kakao.com/talk/friends/picker/link?url=${encodeURIComponent(location.href)}`,'_blank','width=500,height=600');
   toast('카카오톡 공유창이 열렸어요!','success');
@@ -684,35 +752,60 @@ window.shareKakao = function() {
 
 // ── ADMIN
 window.adminLogin = function() {
-  if(document.getElementById('adminPw').value === ADMIN_PW) {
+  if (document.getElementById('adminPw').value === ADMIN_PW) {
     document.getElementById('adminLoginWrap').style.display = 'none';
     document.getElementById('adminPanelWrap').style.display = 'block';
     document.getElementById('adminError').textContent = '';
     renderAdminPanel();
+    syncDateUI();
   } else {
     document.getElementById('adminError').textContent = '비밀번호가 틀렸어요';
     document.getElementById('adminPw').value = '';
   }
 };
+
 window.adminLogout = function() {
   document.getElementById('adminPanelWrap').style.display = 'none';
   document.getElementById('adminLoginWrap').style.display = 'block';
   document.getElementById('adminPw').value = '';
 };
+
+window.changeAdminDate = function(dateStr) {
+  if (!dateStr) return;
+
+  selectedDate = dateStr;
+  matches = [];
+  rankings = {};
+  picks = {};
+  submitted = false;
+  mySubmittedPicks = {};
+
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = '예측 제출하기';
+
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+  listenData();
+  toast(`${selectedDateStr()} 데이터로 전환되었어요`, 'success');
+};
+
 function teamOpts(sel='') {
-  return `<option value="">팀 선택</option>`+TEAM_LIST.map(t=>`<option value="${t}" ${t===sel?'selected':''}>${t}</option>`).join('');
+  return `<option value="">팀 선택</option>` + TEAM_LIST.map(t => `<option value="${t}" ${t === sel ? 'selected' : ''}>${t}</option>`).join('');
 }
+
 function renderAdminPanel() {
-  document.getElementById('matchEditorList').innerHTML = matches.map((m,i)=>`
+  document.getElementById('matchEditorList').innerHTML = matches.map((m, i) => `
     <div class="match-editor">
-      <div class="match-editor-header"><span class="match-editor-num">경기 ${i+1}</span><button class="del-btn" onclick="delMatch(${i})">삭제</button></div>
+      <div class="match-editor-header">
+        <span class="match-editor-num">경기 ${i + 1}</span>
+        <button class="del-btn" onclick="delMatch(${i})">삭제</button>
+      </div>
       <div class="editor-grid">
         <div><div class="field-label">홈팀</div><select id="me-t1-${i}">${teamOpts(m.team1)}</select></div>
         <div><div class="field-label">원정팀</div><select id="me-t2-${i}">${teamOpts(m.team2)}</select></div>
       </div>
       <div class="editor-grid">
-        <div><div class="field-label">홈팀 선발투수</div><input type="text" id="me-p1-${i}" value="${m.pitcher1||''}" placeholder="예: 양현종"></div>
-        <div><div class="field-label">원정팀 선발투수</div><input type="text" id="me-p2-${i}" value="${m.pitcher2||''}" placeholder="예: 류현진"></div>
+        <div><div class="field-label">홈팀 선발투수</div><input type="text" id="me-p1-${i}" value="${m.pitcher1 || ''}" placeholder="예: 양현종"></div>
+        <div><div class="field-label">원정팀 선발투수</div><input type="text" id="me-p2-${i}" value="${m.pitcher2 || ''}" placeholder="예: 류현진"></div>
       </div>
       <div class="editor-grid">
         <div><div class="field-label">경기 시간</div><input type="text" id="me-time-${i}" value="${m.time}" placeholder="18:30"></div>
@@ -720,75 +813,116 @@ function renderAdminPanel() {
       </div>
     </div>`).join('');
 
-  document.getElementById('resultEditorList').innerHTML = matches.map((m,i)=>`
+  document.getElementById('resultEditorList').innerHTML = matches.map((m, i) => `
     <div class="result-editor">
-      <span class="result-match-name">${m.team1||'?'} vs ${m.team2||'?'}</span>
+      <span class="result-match-name">${m.team1 || '?'} vs ${m.team2 || '?'}</span>
       <select class="result-select" id="res-${i}">
         <option value="">결과 미정</option>
-        ${m.team1?`<option value="${m.team1}" ${m.result===m.team1?'selected':''}>${m.team1} 승</option>`:''}
-        ${m.team2?`<option value="${m.team2}" ${m.result===m.team2?'selected':''}>${m.team2} 승</option>`:''}
+        ${m.team1 ? `<option value="${m.team1}" ${m.result === m.team1 ? 'selected' : ''}>${m.team1} 승</option>` : ''}
+        ${m.team2 ? `<option value="${m.team2}" ${m.result === m.team2 ? 'selected' : ''}>${m.team2} 승</option>` : ''}
       </select>
     </div>`).join('');
 
   renderAdminUserList();
+  syncDateUI();
 }
 
 function renderAdminUserList() {
   const ul = document.getElementById('adminUserList');
-  if(!ul) return;
+  if (!ul) return;
+
   const list = Object.values(rankings);
-  if(list.length === 0) { ul.innerHTML='<p style="font-size:14px;color:var(--text3)">아직 참여자가 없어요</p>'; return; }
-  ul.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:13px">
+  if (list.length === 0) {
+    ul.innerHTML = '<p style="font-size:14px;color:var(--text3)">아직 참여자가 없어요</p>';
+    return;
+  }
+
+  ul.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
     <tr style="border-bottom:1px solid var(--border2)">
       <th style="text-align:left;padding:8px 0;color:var(--text3);font-weight:500">이름</th>
       <th style="text-align:center;padding:8px 0;color:var(--text3);font-weight:500">맞힘</th>
       <th style="text-align:center;padding:8px 0;color:var(--text3);font-weight:500">총경기</th>
       <th style="text-align:right;padding:8px 0;color:var(--text3);font-weight:500">적중률</th>
     </tr>
-    ${list.map(r=>{const pct=r.total?Math.round(r.correct/r.total*100):0;return`<tr style="border-bottom:1px solid var(--border)"><td style="padding:10px 0">${r.name}</td><td style="text-align:center;color:var(--green)">${r.correct}</td><td style="text-align:center">${r.total}</td><td style="text-align:right;color:var(--accent)">${pct}%</td></tr>`;}).join('')}
+    ${list.map(r => {
+      const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:10px 0">${r.name}</td>
+        <td style="text-align:center;color:var(--green)">${r.correct}</td>
+        <td style="text-align:center">${r.total}</td>
+        <td style="text-align:right;color:var(--accent)">${pct}%</td>
+      </tr>`;
+    }).join('')}
   </table>`;
 }
 
 window.addMatchEditor = function() {
   const id = matches.length;
-  matches.push({id,team1:'',emoji1:'⚾',pitcher1:'',team2:'',emoji2:'⚾',pitcher2:'',time:'18:30',stadium:'',result:null});
+  matches.push({
+    id,
+    team1:'',
+    emoji1:'⚾',
+    pitcher1:'',
+    team2:'',
+    emoji2:'⚾',
+    pitcher2:'',
+    time:'18:30',
+    stadium:'',
+    result:null
+  });
   renderAdminPanel();
 };
+
 window.delMatch = function(i) {
-  if(matches.length<=1){toast('최소 1경기는 있어야 해요','error');return;}
-  matches.splice(i,1); matches.forEach((m,idx)=>m.id=idx); renderAdminPanel();
+  if (matches.length <= 1) {
+    toast('최소 1경기는 있어야 해요','error');
+    return;
+  }
+  matches.splice(i, 1);
+  matches.forEach((m, idx) => m.id = idx);
+  renderAdminPanel();
 };
+
 window.applyMatches = function() {
-  matches.forEach((m,i) => {
-    const t1 = document.getElementById(`me-t1-${i}`)?.value||'';
-    const t2 = document.getElementById(`me-t2-${i}`)?.value||'';
-    m.team1=t1; m.emoji1=EMOJI_MAP[t1]||'⚾';
-    m.team2=t2; m.emoji2=EMOJI_MAP[t2]||'⚾';
-    m.pitcher1=document.getElementById(`me-p1-${i}`)?.value.trim()||'';
-    m.pitcher2=document.getElementById(`me-p2-${i}`)?.value.trim()||'';
-    m.time=document.getElementById(`me-time-${i}`)?.value||m.time;
-    m.stadium=document.getElementById(`me-stadium-${i}`)?.value||m.stadium;
+  matches.forEach((m, i) => {
+    const t1 = document.getElementById(`me-t1-${i}`)?.value || '';
+    const t2 = document.getElementById(`me-t2-${i}`)?.value || '';
+    m.team1 = t1;
+    m.emoji1 = EMOJI_MAP[t1] || '⚾';
+    m.team2 = t2;
+    m.emoji2 = EMOJI_MAP[t2] || '⚾';
+    m.pitcher1 = document.getElementById(`me-p1-${i}`)?.value.trim() || '';
+    m.pitcher2 = document.getElementById(`me-p2-${i}`)?.value.trim() || '';
+    m.time = document.getElementById(`me-time-${i}`)?.value || m.time;
+    m.stadium = document.getElementById(`me-stadium-${i}`)?.value || m.stadium;
   });
-  picks={}; submitted=false;
-  document.getElementById('submitBtn').disabled=false;
-  document.getElementById('submitBtn').textContent='예측 제출하기';
+
+  picks = {};
+  submitted = false;
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = '예측 제출하기';
+
   saveMatchesToDB();
-  renderMatches(); renderAdminPanel();
+  renderMatches();
+  renderAdminPanel();
   toast('경기 정보가 Firebase에 업데이트되었어요!','success');
 };
 
 window.saveResults = async function() {
-  matches.forEach((m,i) => { m.result = document.getElementById(`res-${i}`)?.value || null; });
+  matches.forEach((m, i) => {
+    m.result = document.getElementById(`res-${i}`)?.value || null;
+  });
+
   saveMatchesToDB();
 
-  // 모든 참여자 점수 재계산
-  const updates = {};
+  const updatesObj = {};
   Object.values(rankings).forEach(r => {
     const correct = matches.filter(m => m.result && r.picks && r.picks[m.id] === m.result).length;
-    updates[`${todayKey()}/participants/${r.name}/correct`] = correct;
+    updatesObj[`${currentKey()}/participants/${r.name}/correct`] = correct;
   });
-  if(Object.keys(updates).length > 0) {
-    await update(ref(db), updates);
+
+  if (Object.keys(updatesObj).length > 0) {
+    await update(ref(db), updatesObj);
   }
 
   renderAdminPanel();
@@ -796,20 +930,29 @@ window.saveResults = async function() {
 };
 
 window.resetAllData = async function() {
-  if(!confirm('오늘 모든 데이터를 초기화할까요?')) return;
-  if(!db) { toast('Firebase 연결 필요','error'); return; }
-  await remove(ref(db, `${todayKey()}/participants`));
-  toast('참여자 데이터가 초기화되었어요','success');
+  if (!confirm(`${selectedDateStr()} 데이터 전체를 초기화할까요?`)) return;
+  if (!db) { toast('Firebase 연결 필요','error'); return; }
+
+  await remove(ref(db, `${currentKey()}/participants`));
+  await remove(ref(db, `${currentKey()}/matches`));
+
+  matches = [];
+  rankings = {};
+  picks = {};
+  submitted = false;
+  mySubmittedPicks = {};
+
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = '예측 제출하기';
+
+  listenData();
+  toast('선택한 날짜 데이터가 초기화되었어요','success');
 };
 
-
-
 // ── INIT
-document.getElementById('heroDate').textContent = todayStr();
-
+syncDateUI();
 initFirebase("https://kbo-prediction-72dfe-default-rtdb.firebaseio.com");
 
- 
 </script>
 </body>
 </html>
