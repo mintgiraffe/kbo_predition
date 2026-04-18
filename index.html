@@ -241,12 +241,22 @@ textarea{resize:vertical;min-height:56px}
   </div>
   <div class="main">
     <div class="user-card">
-      <div class="user-avatar" id="userAvatarLetter">?</div>
-      <div class="user-input-wrap">
-        <div class="field-label">내 닉네임</div>
-        <input type="text" id="userName" placeholder="이름을 입력하세요" oninput="updateAvatar()">
-      </div>
-    </div>
+  <div class="user-avatar" id="userAvatarLetter">?</div>
+
+  <div class="user-input-wrap">
+    <div class="field-label">닉네임</div>
+    <input type="text" id="userName" placeholder="닉네임 입력" oninput="updateAvatar()">
+  </div>
+
+  <div class="user-input-wrap">
+    <div class="field-label">비밀번호 (4자리)</div>
+    <input type="password" id="userPw" maxlength="4" placeholder="1234">
+  </div>
+
+  <button type="button" onclick="login()" style="margin-left:10px;padding:10px 14px;border:none;border-radius:8px;background:var(--accent);color:#0d0f14;font-weight:700;cursor:pointer;">
+    로그인
+  </button>
+</div>
     <div class="section-header">
       <div class="section-title">오늘의 경기</div>
       <div class="section-count" id="matchCountLabel">0 / 0</div>
@@ -387,7 +397,7 @@ textarea{resize:vertical;min-height:56px}
 <!-- Firebase SDK (CDN) -->
 <script type="module">
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getDatabase, ref, set, onValue, remove, update }
+import { getDatabase, ref, set, onValue, remove, update, get }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js';
 
 const ADMIN_PW = '1234';
@@ -403,7 +413,9 @@ let myName = '';
 let mySubmittedPicks = {};
 let unsubscribers = [];
 let cumulativeRankings = {};
-
+let isLoggedIn = false;
+let myPw = '';
+  
 let selectedDate = getTodayInputValue();
 
 // ── Firebase 초기화
@@ -589,6 +601,69 @@ function updateAvatar() {
 window.showPage = showPage;
 window.updateAvatar = updateAvatar;
 
+  window.login = async function() {
+  if (!db) {
+    toast('Firebase 연결 필요', 'error');
+    return;
+  }
+
+  const name = document.getElementById('userName').value.trim();
+  const pw = document.getElementById('userPw').value.trim();
+
+  if (!name || !pw) {
+    toast('닉네임과 비밀번호를 입력하세요', 'error');
+    return;
+  }
+
+  if (!/^\d{4}$/.test(pw)) {
+    toast('비밀번호는 숫자 4자리여야 해요', 'error');
+    return;
+  }
+
+  const userRef = ref(db, `${currentKey()}/participants/${name}`);
+  const snap = await get(userRef);
+  const data = snap.val();
+
+  if (data) {
+    if (data.pw !== pw) {
+      toast('비밀번호가 틀렸어요', 'error');
+      isLoggedIn = false;
+      return;
+    }
+
+    myName = name;
+    myPw = pw;
+    isLoggedIn = true;
+    mySubmittedPicks = data.picks || {};
+    picks = { ...mySubmittedPicks };
+    submitted = true;
+
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').textContent = '✓ 제출 완료';
+
+    toast(`${name}님 로그인 완료`, 'success');
+  } else {
+    myName = name;
+    myPw = pw;
+    isLoggedIn = true;
+    mySubmittedPicks = {};
+    picks = {};
+    submitted = false;
+
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = '예측 제출하기';
+
+    toast(`${name}님 새 계정으로 시작해요`, 'success');
+  }
+
+  localStorage.setItem('kbo_name', name);
+  localStorage.setItem('kbo_pw', pw);
+
+  renderMatches();
+  renderHistory();
+  renderRanking();
+};
+
 // ── 실시간 픽 비율 계산
 function getPickRatio(matchId) {
   const counts = { t1: 0, t2: 0 };
@@ -665,7 +740,11 @@ function updatePickCount() {
 // ── SUBMIT
 window.submitPrediction = async function() {
   if (!db) { toast('Firebase가 연결되지 않았어요','error'); return; }
-
+    if (!isLoggedIn) {
+    toast('먼저 로그인하세요', 'error');
+    return;
+  }
+  
   const name = document.getElementById('userName').value.trim();
   if (!name) { toast('이름을 먼저 입력해주세요!','error'); return; }
   if (Object.keys(picks).length < matches.length) {
@@ -674,7 +753,6 @@ window.submitPrediction = async function() {
   }
 
   myName = name;
-  localStorage.setItem('kbo_my_name', name);
   mySubmittedPicks = { ...picks };
   submitted = true;
   document.getElementById('submitBtn').disabled = true;
@@ -685,6 +763,7 @@ window.submitPrediction = async function() {
 
   await set(ref(db, `${currentKey()}/participants/${name}`), {
     name,
+    pw: myPw,
     correct,
     total: matches.length,
     picks: mySubmittedPicks,
@@ -864,6 +943,9 @@ window.changeAdminDate = function(dateStr) {
 
   document.getElementById('loadingOverlay').classList.remove('hidden');
   listenData();
+    setTimeout(() => {
+    if (myName && myPw) login();
+  }, 300);
   toast(`${selectedDateStr()} 데이터로 전환되었어요`, 'success');
 };
 
@@ -1072,15 +1154,30 @@ window.resetAllData = async function() {
 };
 
 // ── INIT
-const savedName = localStorage.getItem('kbo_my_name'); // 저장된 이름 불러오기
+const savedName = localStorage.getItem('kbo_name');
+const savedPw = localStorage.getItem('kbo_pw');
+
 if (savedName) {
-  document.getElementById('userName').value = savedName; // 입력창에 자동 채우기
-  myName = savedName; // 내 이름 변수 세팅
-  updateAvatar(); // 프로필 동그라미 글자 업데이트
+  document.getElementById('userName').value = savedName;
+}
+if (savedPw) {
+  document.getElementById('userPw').value = savedPw;
+}
+if (savedName) {
+  updateAvatar();
 }
   
 syncDateUI();
 initFirebase("https://kbo-prediction-72dfe-default-rtdb.firebaseio.com");
+
+setTimeout(() => {
+  const savedName = localStorage.getItem('kbo_name');
+  const savedPw = localStorage.getItem('kbo_pw');
+
+  if (savedName && savedPw) {
+    login();
+  }
+}, 500);
 
 </script>
 </body>
