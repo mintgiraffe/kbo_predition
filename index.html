@@ -1504,16 +1504,6 @@ window.applyMatches = async function() {
   toast('경기 정보가 적용되었어요!', 'success');
 };
 
-  picks = {};
-  submitted = false;
-  document.getElementById('submitBtn').disabled = false;
-  document.getElementById('submitBtn').textContent = '예측 제출하기';
-
-  saveMatchesToDB();
-  renderMatches();
-  renderAdminPanel();
-  toast('경기 정보가 Firebase에 업데이트되었어요!','success');
-};
 
 window.saveResults = async function() {
   matches.forEach((m, i) => {
