@@ -137,7 +137,6 @@ select option{background:var(--bg3)}
 .team-pick:hover{border-color:rgba(232,200,74,.4);background:var(--bg4);transform:translateY(-1px)}
 .team-pick.selected{border-color:var(--accent);background:rgba(232,200,74,.08)}
 .team-pick.selected .team-nm{color:var(--accent)}
-.team-emoji{font-size:24px;margin-bottom:5px}
 .team-nm{
   font-size:15px;
   font-weight:700;
@@ -147,7 +146,14 @@ select option{background:var(--bg3)}
   width:100%;
   display:block;
 }
-.pitcher-info{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.3}
+.pitcher-info{
+  font-size:11px;
+  color:var(--text3);
+  margin-top:5px;
+  line-height:1.3;
+  text-align:center;
+  width:100%;
+}
 
 /* 실시간 픽 비율 표시 */
 .pick-ratio-bar{display:flex;height:4px;border-radius:99px;overflow:hidden;margin-top:10px;background:var(--bg4)}
@@ -162,6 +168,19 @@ select option{background:var(--bg3)}
 .submit-btn:hover{background:var(--accent2);transform:translateY(-1px)}
 .submit-btn:active{transform:scale(.98)}
 .submit-btn:disabled{opacity:.3;cursor:not-allowed;transform:none}
+  .closed-match{
+  opacity:.78;
+}
+
+.team-pick.locked{
+  cursor:not-allowed;
+}
+
+.team-pick.locked:hover{
+  transform:none;
+  border-color:var(--border2);
+  background:var(--bg3);
+}
 
 /* RANKING */
 .rank-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:20px}
@@ -334,7 +353,7 @@ textarea{resize:vertical;min-height:56px}
       <div class="section-count" id="matchCountLabel">0 / 0</div>
     </div>
     <div id="matchList"></div>
-    <button class="submit-btn" id="submitBtn" onclick="submitPrediction()">예측 제출하기</button>
+   <button class="submit-btn" id="submitBtn" onclick="submitPrediction()">예측 저장하기</button>
   </div>
 </div>
 
@@ -554,6 +573,16 @@ function syncDateUI() {
   const adminDateLabel = document.getElementById('adminDateLabel');
   if (adminDateLabel) adminDateLabel.textContent = selectedDateStr();
 }
+  function getMatchDateTime(match) {
+  const d = parseDateInput(selectedDate);
+  const [hour, minute] = (match.time || '18:30').split(':').map(Number);
+  d.setHours(hour || 0, minute || 0, 0, 0);
+  return d;
+}
+
+function isMatchClosed(match) {
+  return new Date() >= getMatchDateTime(match);
+}
 
 // ── 실시간 데이터 구독
 function listenData() {
@@ -728,8 +757,8 @@ window.login = async function() {
     picks = { ...mySubmittedPicks };
     submitted = true;
 
-    document.getElementById('submitBtn').disabled = true;
-    document.getElementById('submitBtn').textContent = '✓ 제출 완료';
+    document.getElementById('submitBtn').disabled = false;
+document.getElementById('submitBtn').textContent = '예측 저장하기';
     toast(`${name}님 로그인 완료`, 'success');
 
   } else {
@@ -741,7 +770,7 @@ window.login = async function() {
     submitted = false;
 
     document.getElementById('submitBtn').disabled = false;
-    document.getElementById('submitBtn').textContent = '예측 제출하기';
+    document.getElementById('submitBtn').textContent = '예측 저하기';
     toast(`${name}님 새 계정으로 시작해요`, 'success');
   }
 
@@ -810,30 +839,36 @@ function renderMatches() {
     const pct1 = total ? Math.round(ratio.t1 / total * 100) : 50;
     const pct2 = total ? Math.round(ratio.t2 / total * 100) : 50;
 
+    const closed = isMatchClosed(m); // 🔥 마감 여부
+
     return `
-    <div class="match-card ${picks[m.id] ? 'has-pick' : ''}" id="mc-${m.id}">
+    <div class="match-card ${picks[m.id] ? 'has-pick' : ''} ${closed ? 'closed-match' : ''}" id="mc-${m.id}">
       <div class="match-meta">
         <span class="match-badge">경기 ${m.id + 1}</span>
         <span class="match-stadium">${m.stadium}</span>
-        <span class="match-time">${m.time}</span>
+        <span class="match-time">${m.time}${closed ? ' · 마감' : ''}</span>
       </div>
+
       <div class="teams-grid">
-        <div class="team-pick ${picks[m.id] === m.team1 ? 'selected' : ''}" onclick="pick(${m.id},'${m.team1}')">
+        <div class="team-pick ${picks[m.id] === m.team1 ? 'selected' : ''} ${closed ? 'locked' : ''}" onclick="pick(${m.id},'${m.team1}')">
           <div class="team-emoji">
-  <img src="${LOGO_MAP[m.team1]}" alt="${m.team1}" class="team-logo" loading="lazy" decoding="async">
-</div>
+            <img src="${LOGO_MAP[m.team1]}" alt="${m.team1}" class="team-logo" loading="lazy" decoding="async">
+          </div>
           <div class="team-nm">${m.team1}</div>
           <div class="pitcher-info">${m.pitcher1 ? '선발 ' + m.pitcher1 : '선발 미정'}</div>
         </div>
+
         <div class="vs-col"><div class="vs-circle">VS</div></div>
-        <div class="team-pick ${picks[m.id] === m.team2 ? 'selected' : ''}" onclick="pick(${m.id},'${m.team2}')">
+
+        <div class="team-pick ${picks[m.id] === m.team2 ? 'selected' : ''} ${closed ? 'locked' : ''}" onclick="pick(${m.id},'${m.team2}')">
           <div class="team-emoji">
-  <img src="${LOGO_MAP[m.team2]}" alt="${m.team2}" class="team-logo" loading="lazy" decoding="async">
-</div>
+            <img src="${LOGO_MAP[m.team2]}" alt="${m.team2}" class="team-logo" loading="lazy" decoding="async">
+          </div>
           <div class="team-nm">${m.team2}</div>
           <div class="pitcher-info">${m.pitcher2 ? '선발 ' + m.pitcher2 : '선발 미정'}</div>
         </div>
       </div>
+
       ${total > 0 ? `
       <div class="pick-ratio-bar" style="margin-top:10px">
         <div class="pick-ratio-t1" style="width:${pct1}%"></div>
@@ -852,7 +887,14 @@ function renderMatches() {
 }
 
 window.pick = function(matchId, team) {
-  if (submitted) return;
+  const match = matches.find(m => m.id === matchId);
+  if (!match) return;
+
+  if (isMatchClosed(match)) {
+    toast('마감된 경기입니다', 'error');
+    return;
+  }
+
   picks[matchId] = team;
   renderMatches();
 };
@@ -871,8 +913,8 @@ window.submitPrediction = async function() {
     return;
   }
   
-  const name = document.getElementById('userName').value.trim();
-  if (!name) { toast('이름을 먼저 입력해주세요!','error'); return; }
+  const name = myName;
+  if (!myName) { toast('로그인 먼저 해주세요!','error'); return; }
   if (Object.keys(picks).length < matches.length) {
     toast(`${matches.length - Object.keys(picks).length}경기 예측이 더 필요해요`,'error');
     return;
@@ -881,8 +923,8 @@ window.submitPrediction = async function() {
   myName = name;
   mySubmittedPicks = { ...picks };
   submitted = true;
-  document.getElementById('submitBtn').disabled = true;
-  document.getElementById('submitBtn').textContent = '✓ 제출 완료';
+  document.getElementById('submitBtn').disabled = false;
+document.getElementById('submitBtn').textContent = '예측 저장하기';
 
   const existing = rankings[name];
   const correct = existing ? existing.correct : 0;
