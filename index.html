@@ -674,6 +674,7 @@ window.submitPrediction = async function() {
   }
 
   myName = name;
+  localStorage.setItem('kbo_my_name', name);
   mySubmittedPicks = { ...picks };
   submitted = true;
   document.getElementById('submitBtn').disabled = true;
@@ -1049,6 +1050,13 @@ window.resetAllData = async function() {
 };
 
 // ── INIT
+const savedName = localStorage.getItem('kbo_my_name'); // 저장된 이름 불러오기
+if (savedName) {
+  document.getElementById('userName').value = savedName; // 입력창에 자동 채우기
+  myName = savedName; // 내 이름 변수 세팅
+  updateAvatar(); // 프로필 동그라미 글자 업데이트
+}
+  
 syncDateUI();
 initFirebase("https://kbo-prediction-72dfe-default-rtdb.firebaseio.com");
 
