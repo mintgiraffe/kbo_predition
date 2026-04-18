@@ -275,7 +275,15 @@ select option{background:var(--bg3)}
 /* RANKING */
 .rank-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:20px}
 .rank-empty{padding:50px 20px;text-align:center;color:var(--text3);font-size:14px}
-.rank-row{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);transition:background .15s}
+.rank-row{
+  display:grid;
+  grid-template-columns: 40px 34px minmax(0, 1fr) 88px;
+  align-items:center;
+  column-gap:12px;
+  padding:13px 18px;
+  border-bottom:1px solid var(--border);
+  transition:background .15s;
+}
 .rank-row:last-child{border-bottom:none}
 .rank-row:hover{background:var(--bg3)}
 .rank-row{
@@ -1156,13 +1164,13 @@ function renderRanking() {
           : '<span style="font-size:11px;color:var(--red);font-weight:700;">오답</span>';
       }
 
-      return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;border-top:1px solid var(--border);">
-          <span style="color:var(--text2);">${m.team1} vs ${m.team2}</span>
-          <span style="font-weight:700;color:var(--accent);">${pickedTeam}</span>
-          ${resultHtml}
-        </div>
-      `;
+return `
+  <div style="display:grid;grid-template-columns:1.6fr 90px 70px;align-items:center;column-gap:12px;padding:4px 0;font-size:12px;border-top:1px solid var(--border);">
+    <span style="color:var(--text2);">${m.team1} vs ${m.team2}</span>
+    <span style="font-weight:700;color:var(--accent);text-align:left;">${pickedTeam}</span>
+    <span style="justify-self:end;">${resultHtml}</span>
+  </div>
+`;
     }).join('');
 
     return `
