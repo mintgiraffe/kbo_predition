@@ -1045,11 +1045,6 @@ function updatePickCount() {
   document.getElementById('matchCountLabel').textContent = `${n} / ${matches.length}`;
   document.getElementById('statPicked').textContent = n;
 }
-  function updatePickCount() {
-  const n = Object.keys(picks).length;
-  document.getElementById('matchCountLabel').textContent = `${n} / ${matches.length}`;
-  document.getElementById('statPicked').textContent = n;
-}
 
 function updateSubmitButtonState() {
   const btn = document.getElementById('submitBtn');
