@@ -443,7 +443,7 @@ textarea{resize:vertical;min-height:56px}
       <div class="section-count" id="matchCountLabel">0 / 0</div>
     </div>
     <div id="matchList"></div>
-   <button class="submit-btn" id="submitBtn" onclick="submitPrediction()">예측 저장하기</button>
+   <button class="submit-btn" id="submitBtn" onclick="submitPrediction()">예측 제출하기</button>
   </div>
 </div>
 
@@ -848,7 +848,7 @@ window.login = async function() {
     submitted = true;
 
     document.getElementById('submitBtn').disabled = false;
-document.getElementById('submitBtn').textContent = '예측 저장하기';
+document.getElementById('submitBtn').textContent = '예측 제출하기';
     toast(`${name}님 로그인 완료`, 'success');
 
   } else {
@@ -860,7 +860,7 @@ document.getElementById('submitBtn').textContent = '예측 저장하기';
     submitted = false;
 
     document.getElementById('submitBtn').disabled = false;
-    document.getElementById('submitBtn').textContent = '예측 저하기';
+    document.getElementById('submitBtn').textContent = '예측 제하기';
     toast(`${name}님 새 계정으로 시작해요`, 'success');
   }
 
@@ -1014,7 +1014,7 @@ window.submitPrediction = async function() {
   mySubmittedPicks = { ...picks };
   submitted = true;
   document.getElementById('submitBtn').disabled = false;
-document.getElementById('submitBtn').textContent = '예측 저장하기';
+document.getElementById('submitBtn').textContent = '예측 제출하기';
 
   const existing = rankings[name];
   const correct = existing ? existing.correct : 0;
