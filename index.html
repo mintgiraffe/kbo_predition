@@ -1466,17 +1466,15 @@ window.applyMatches = async function() {
     m.pitcher2 = document.getElementById(`me-p2-${i}`)?.value.trim() || '';
     m.time = document.getElementById(`me-time-${i}`)?.value || m.time;
     m.stadium = document.getElementById(`me-stadium-${i}`)?.value || m.stadium;
-    m.result = null; // 경기 정보 바꾸면 결과도 초기화
+    m.result = null;
   });
 
-  // 같은 팀끼리 경기하는 실수 방지
   const invalidMatch = matches.find(m => !m.team1 || !m.team2 || m.team1 === m.team2);
   if (invalidMatch) {
     toast('홈팀/원정팀을 올바르게 설정하세요', 'error');
     return;
   }
 
-  // 기존 참가자 예측 데이터 초기화 여부 확인
   const hasParticipants = Object.keys(rankings).length > 0;
   if (hasParticipants) {
     const ok = confirm(
@@ -1485,15 +1483,12 @@ window.applyMatches = async function() {
     if (!ok) return;
   }
 
-  // 경기 저장
   await set(ref(db, `${currentKey()}/matches`), matches);
 
-  // 기존 참가자 데이터 초기화
   if (hasParticipants) {
     await remove(ref(db, `${currentKey()}/participants`));
   }
 
-  // 내 로컬 상태도 초기화
   picks = {};
   submitted = false;
   mySubmittedPicks = {};
