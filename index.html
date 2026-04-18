@@ -220,6 +220,7 @@ textarea{resize:vertical;min-height:56px}
   <div class="nav-tabs">
     <div class="nav-tab active" onclick="showPage('predict')">예측하기</div>
     <div class="nav-tab" onclick="showPage('ranking')">실시간 랭킹</div>
+    <div class="nav-tab" onclick="showPage('cumulative')">누적 랭킹</div>
     <div class="nav-tab" onclick="showPage('history')">내 기록</div>
     <div class="nav-tab" onclick="showPage('share')">공유하기</div>
     <div class="nav-tab admin-tab" onclick="showPage('admin')">⚙ 관리자</div>
@@ -268,6 +269,19 @@ textarea{resize:vertical;min-height:56px}
   </div>
 </div>
 
+<!-- CumulativeRANKING --> 
+<div class="page" id="page-cumulative">
+  <div class="hero" style="padding-bottom:16px">
+    <div class="hero-date">SEASON RANKING</div>
+    <h1 class="hero-title">통합 누적 <span class="acc">랭킹</span></h1>
+  </div>
+  <div class="main" style="margin-top:12px">
+    <div class="rank-card" id="cumulativeRankList">
+      <div class="rank-empty">아직 누적 데이터가 없어요<br><span style="font-size:12px;margin-top:4px;display:block">경기가 누적되면 순위가 나타납니다</span></div>
+    </div>
+  </div>
+</div>
+  
 <!-- HISTORY -->
 <div class="page" id="page-history">
   <div class="hero" style="padding-bottom:16px">
@@ -388,6 +402,7 @@ let submitted = false;
 let myName = '';
 let mySubmittedPicks = {};
 let unsubscribers = [];
+let cumulativeRankings = {};
 
 let selectedDate = getTodayInputValue();
 
@@ -512,7 +527,31 @@ function listenData() {
   });
 
   unsubscribers.push(unsubRanks);
-
+  
+const rootRef = ref(db);
+  const unsubRoot = onValue(rootRef, snap => {
+    const data = snap.val() || {};
+    const tempRanks = {};
+    
+    // DB의 모든 날짜(kbo_날짜) 데이터를 순회하며 합산
+    for (const k in data) {
+      if (k.startsWith('kbo_') && data[k].participants) {
+        const parts = data[k].participants;
+        for (const name in parts) {
+          if (!tempRanks[name]) tempRanks[name] = { name: name, correct: 0, total: 0 };
+          tempRanks[name].correct += (parts[name].correct || 0);
+          tempRanks[name].total += (parts[name].total || 0);
+        }
+      }
+    }
+    cumulativeRankings = tempRanks;
+    
+    // 현재 누적 랭킹 탭을 보고 있다면 화면 즉시 새로고침
+    if (document.getElementById('page-cumulative').classList.contains('active')) {
+      renderCumulativeRanking();
+    }
+  });
+  unsubscribers.push(unsubRoot);
   syncDateUI();
 }
 
@@ -529,13 +568,14 @@ function toast(msg, type='') {
   setTimeout(() => t.className = 'toast', 2600);
 }
 
-function showPage(id) {
+  function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const map = {predict:0,ranking:1,history:2,share:3,admin:4};
+  const map = {predict:0,ranking:1,cumulative:2,history:3,share:4,admin:5}; // cumulative 추가됨
   document.querySelectorAll('.nav-tab')[map[id]].classList.add('active');
   if (id === 'ranking') renderRanking();
+  if (id === 'cumulative') renderCumulativeRanking(); // 이 줄 추가
   if (id === 'history') renderHistory();
   if (id === 'share') initShare();
   if (id === 'admin' && document.getElementById('adminPanelWrap').style.display !== 'none') renderAdminPanel();
@@ -683,6 +723,44 @@ function renderRanking() {
       <div class="rank-info">
         <div class="rank-name">${r.name}${isMe ? ' 👈' : ''}</div>
         <div class="rank-detail">${r.correct}개 적중 · ${r.total}경기</div>
+      </div>
+      <div class="rank-right">
+        <div class="rank-pct-num">${pct}%</div>
+        <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── CumulativeRANKING
+function renderCumulativeRanking() {
+  const el = document.getElementById('cumulativeRankList');
+  const list = Object.values(cumulativeRankings);
+
+  if (list.length === 0) {
+    el.innerHTML = '<div class="rank-empty">아직 누적 데이터가 없어요<br><span style="font-size:12px;margin-top:4px;display:block">경기가 누적되면 순위가 나타납니다</span></div>';
+    return;
+  }
+
+  const sorted = [...list].sort((a, b) => {
+    const pa = a.total ? a.correct / a.total : 0;
+    const pb = b.total ? b.correct / b.total : 0;
+    return pb !== pa ? pb - pa : b.correct - a.correct;
+  });
+
+  const posLabel = i => ['🥇','🥈','🥉'][i] ?? (i + 1);
+  const posClass = i => ['p1','p2','p3'][i] ?? '';
+
+  el.innerHTML = sorted.map((r, i) => {
+    const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
+    const isMe = r.name === myName;
+
+    return `<div class="rank-row ${isMe ? 'me' : ''}">
+      <div class="rank-pos ${posClass(i)}">${posLabel(i)}</div>
+      <div class="rank-avatar-sm">${r.name[0]}</div>
+      <div class="rank-info">
+        <div class="rank-name">${r.name}${isMe ? ' 👈' : ''}</div>
+        <div class="rank-detail">총 ${r.correct}개 적중 · 누적 ${r.total}경기 참여</div>
       </div>
       <div class="rank-right">
         <div class="rank-pct-num">${pct}%</div>
