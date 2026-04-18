@@ -974,6 +974,7 @@ function renderMatches() {
 
   updatePickCount();
   document.getElementById('statMatches').textContent = matches.length;
+  updateSubmitButtonState();
 }
 
 window.pick = function(matchId, team) {
@@ -994,6 +995,27 @@ function updatePickCount() {
   document.getElementById('matchCountLabel').textContent = `${n} / ${matches.length}`;
   document.getElementById('statPicked').textContent = n;
 }
+  function updatePickCount() {
+  const n = Object.keys(picks).length;
+  document.getElementById('matchCountLabel').textContent = `${n} / ${matches.length}`;
+  document.getElementById('statPicked').textContent = n;
+}
+
+function updateSubmitButtonState() {
+  const btn = document.getElementById('submitBtn');
+  if (!btn) return;
+
+  const allClosed = matches.length > 0 && matches.every(m => isMatchClosed(m));
+
+  if (allClosed) {
+    btn.disabled = true;
+    btn.textContent = '제출 마감';
+    return;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '예측 제출하기';
+}
 
 // ── SUBMIT
 window.submitPrediction = async function() {
@@ -1002,6 +1024,12 @@ window.submitPrediction = async function() {
     toast('먼저 로그인하세요', 'error');
     return;
   }
+
+  const allClosed = matches.length > 0 && matches.every(m => isMatchClosed(m));
+if (allClosed) {
+  toast('모든 경기의 예측 마감 시간이 지났어요', 'error');
+  return;
+}
   
   const name = myName;
   if (!myName) { toast('로그인 먼저 해주세요!','error'); return; }
