@@ -84,7 +84,13 @@ input[type=text]:focus,input[type=password]:focus,select:focus,textarea:focus{bo
 input::placeholder,textarea::placeholder{color:var(--text3)}
 select option{background:var(--bg3)}
 
-.section-header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.section-header {
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  max-width: 760px;
+  margin: 0 auto 14px;
+}
 .section-title{font-family:'Black Han Sans',sans-serif;font-size:15px}
 .section-count{font-size:12px;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:99px}
 
