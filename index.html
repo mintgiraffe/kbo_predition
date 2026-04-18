@@ -239,24 +239,33 @@ textarea{resize:vertical;min-height:56px}
     <div class="stat-item"><div class="stat-num" id="statMatches">0</div><div class="stat-label">오늘 경기</div></div>
     <div class="stat-item"><div class="stat-num" id="statPicked">0</div><div class="stat-label">내 예측 수</div></div>
   </div>
-  <div class="main">
-    <div class="user-card">
-  <div class="user-avatar" id="userAvatarLetter">?</div>
+<div class="user-card" id="loginFormWrap">
+      <div class="user-avatar" id="userAvatarLetter">?</div>
+      <div class="user-input-wrap">
+        <div class="field-label">닉네임</div>
+        <input type="text" id="userName" placeholder="닉네임 입력" oninput="updateAvatar()">
+      </div>
+      <div class="user-input-wrap">
+        <div class="field-label">비밀번호 (4자리)</div>
+        <input type="password" id="userPw" maxlength="4" placeholder="1234">
+      </div>
+      <button type="button" onclick="login()" style="margin-left:10px;padding:10px 14px;border:none;border-radius:8px;background:var(--accent);color:#0d0f14;font-weight:700;cursor:pointer;">
+        로그인
+      </button>
+    </div>
 
-  <div class="user-input-wrap">
-    <div class="field-label">닉네임</div>
-    <input type="text" id="userName" placeholder="닉네임 입력" oninput="updateAvatar()">
-  </div>
-
-  <div class="user-input-wrap">
-    <div class="field-label">비밀번호 (4자리)</div>
-    <input type="password" id="userPw" maxlength="4" placeholder="1234">
-  </div>
-
-  <button type="button" onclick="login()" style="margin-left:10px;padding:10px 14px;border:none;border-radius:8px;background:var(--accent);color:#0d0f14;font-weight:700;cursor:pointer;">
-    로그인
-  </button>
-</div>
+    <div class="user-card" id="loggedInWrap" style="display:none; justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div class="user-avatar" id="loggedInAvatar">?</div>
+        <div>
+          <div style="font-size:12px; color:var(--text3); margin-bottom:4px;">환영합니다! 🎉</div>
+          <div style="font-size:16px; font-weight:700;"><span id="loggedInName" style="color:var(--accent);"></span> 님</div>
+        </div>
+      </div>
+      <button type="button" onclick="logout()" style="padding:8px 14px; background:var(--bg3); border:1px solid var(--border2); color:var(--text2); border-radius:8px; font-size:12px; font-weight:500; cursor:pointer;">
+        로그아웃
+      </button>
+    </div>
     <div class="section-header">
       <div class="section-title">오늘의 경기</div>
       <div class="section-count" id="matchCountLabel">0 / 0</div>
@@ -601,7 +610,7 @@ function updateAvatar() {
 window.showPage = showPage;
 window.updateAvatar = updateAvatar;
 
-  window.login = async function() {
+window.login = async function() {
   if (!db) {
     toast('Firebase 연결 필요', 'error');
     return;
@@ -625,33 +634,30 @@ window.updateAvatar = updateAvatar;
   const data = snap.val();
 
   if (data) {
-  // 예전 데이터에 pw가 없으면 지금 입력한 4자리를 비밀번호로 등록
-  if (!data.pw) {
-    await update(ref(db, `${currentKey()}/participants/${name}`), {
-      pw: pw
-    });
+    // 예전 데이터에 pw가 없으면 지금 입력한 4자리를 비밀번호로 등록
+    if (!data.pw) {
+      await update(ref(db, `${currentKey()}/participants/${name}`), { pw: pw });
+      data.pw = pw;
+      toast('기존 계정에 비밀번호가 등록되었어요', 'success');
+    }
 
-    data.pw = pw;
-    toast('기존 계정에 비밀번호가 등록되었어요', 'success');
-  }
+    if (data.pw !== pw) {
+      toast('비밀번호가 틀렸어요', 'error');
+      isLoggedIn = false;
+      return;
+    }
 
-  if (data.pw !== pw) {
-    toast('비밀번호가 틀렸어요', 'error');
-    isLoggedIn = false;
-    return;
-  }
+    myName = name;
+    myPw = pw;
+    isLoggedIn = true;
+    mySubmittedPicks = data.picks || {};
+    picks = { ...mySubmittedPicks };
+    submitted = true;
 
-  myName = name;
-  myPw = pw;
-  isLoggedIn = true;
-  mySubmittedPicks = data.picks || {};
-  picks = { ...mySubmittedPicks };
-  submitted = true;
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').textContent = '✓ 제출 완료';
+    toast(`${name}님 로그인 완료`, 'success');
 
-  document.getElementById('submitBtn').disabled = true;
-  document.getElementById('submitBtn').textContent = '✓ 제출 완료';
-
-  toast(`${name}님 로그인 완료`, 'success');
   } else {
     myName = name;
     myPw = pw;
@@ -662,16 +668,48 @@ window.updateAvatar = updateAvatar;
 
     document.getElementById('submitBtn').disabled = false;
     document.getElementById('submitBtn').textContent = '예측 제출하기';
-
     toast(`${name}님 새 계정으로 시작해요`, 'success');
   }
 
   localStorage.setItem('kbo_name', name);
   localStorage.setItem('kbo_pw', pw);
 
+  // 💡 로그인 성공 후 UI 변경
+  document.getElementById('loginFormWrap').style.display = 'none';
+  document.getElementById('loggedInWrap').style.display = 'flex';
+  document.getElementById('loggedInName').textContent = name;
+  document.getElementById('loggedInAvatar').textContent = name[0];
+
   renderMatches();
   renderHistory();
   renderRanking();
+};
+
+// 💡 로그아웃 기능 새로 추가
+window.logout = function() {
+  localStorage.removeItem('kbo_name');
+  localStorage.removeItem('kbo_pw');
+  isLoggedIn = false;
+  myName = '';
+  myPw = '';
+  mySubmittedPicks = {};
+  picks = {};
+  submitted = false;
+
+  // UI 원상복구
+  document.getElementById('loginFormWrap').style.display = 'flex';
+  document.getElementById('loggedInWrap').style.display = 'none';
+  document.getElementById('userName').value = '';
+  document.getElementById('userPw').value = '';
+  updateAvatar();
+
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').textContent = '예측 제출하기';
+
+  renderMatches();
+  renderHistory();
+  renderRanking();
+  toast('로그아웃 되었습니다.', 'success');
 };
 
 // ── 실시간 픽 비율 계산
