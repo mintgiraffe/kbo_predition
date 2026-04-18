@@ -625,23 +625,34 @@ window.updateAvatar = updateAvatar;
   const data = snap.val();
 
   if (data) {
-    if (data.pw !== pw) {
-      toast('비밀번호가 틀렸어요', 'error');
-      isLoggedIn = false;
-      return;
-    }
+  // 예전 데이터에 pw가 없으면 지금 입력한 4자리를 비밀번호로 등록
+  if (!data.pw) {
+    await update(ref(db, `${currentKey()}/participants/${name}`), {
+      pw: pw
+    });
 
-    myName = name;
-    myPw = pw;
-    isLoggedIn = true;
-    mySubmittedPicks = data.picks || {};
-    picks = { ...mySubmittedPicks };
-    submitted = true;
+    data.pw = pw;
+    toast('기존 계정에 비밀번호가 등록되었어요', 'success');
+  }
 
-    document.getElementById('submitBtn').disabled = true;
-    document.getElementById('submitBtn').textContent = '✓ 제출 완료';
+  if (data.pw !== pw) {
+    toast('비밀번호가 틀렸어요', 'error');
+    isLoggedIn = false;
+    return;
+  }
 
-    toast(`${name}님 로그인 완료`, 'success');
+  myName = name;
+  myPw = pw;
+  isLoggedIn = true;
+  mySubmittedPicks = data.picks || {};
+  picks = { ...mySubmittedPicks };
+  submitted = true;
+
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').textContent = '✓ 제출 완료';
+
+  toast(`${name}님 로그인 완료`, 'success');
+}
   } else {
     myName = name;
     myPw = pw;
