@@ -782,6 +782,15 @@ function toast(msg, type='') {
   setTimeout(() => t.className = 'toast', 2600);
 }
 
+  function escapeHtml(str) {
+  return String(str)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
   function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -1108,14 +1117,14 @@ function renderRanking() {
     }).join('');
 
     return `
-      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:12px;">
-        <div class="rank-row ${isMe ? 'me' : ''}">
-          <div class="rank-pos ${posClass(i)}">${posLabel(i)}</div>
-          <div class="rank-avatar-sm">${r.name[0]}</div>
-          <div class="rank-info">
-            <div class="rank-name">${r.name}${isMe ? ' 👈' : ''}</div>
-            <div class="rank-detail">${r.correct}개 적중 · ${r.total}경기</div>
-          </div>
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:16px;overflow:hidden;margin-bottom:12px;">
+    <div class="rank-row ${isMe ? 'me' : ''}">
+      <div class="rank-pos ${posClass(i)}">${posLabel(i)}</div>
+      <div class="rank-avatar-sm">${escapeHtml(r.name[0] || '?')}</div>
+     <div class="rank-info">
+  <div class="rank-name">${escapeHtml(r.name)}${isMe ? ' 👈' : ''}</div>
+  <div class="rank-detail">${r.correct}개 적중 · ${r.total}경기</div>
+</div> 
           <div class="rank-right">
             <div class="rank-pct-num">${pct}%</div>
             <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%"></div></div>
@@ -1153,13 +1162,13 @@ function renderCumulativeRanking() {
     const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
     const isMe = r.name === myName;
 
-    return `<div class="rank-row ${isMe ? 'me' : ''}">
-      <div class="rank-pos ${posClass(i)}">${posLabel(i)}</div>
-      <div class="rank-avatar-sm">${r.name[0]}</div>
-      <div class="rank-info">
-        <div class="rank-name">${r.name}${isMe ? ' 👈' : ''}</div>
-        <div class="rank-detail">총 ${r.correct}개 적중 · 누적 ${r.total}경기 참여</div>
-      </div>
+   return `<div class="rank-row ${isMe ? 'me' : ''}">
+  <div class="rank-pos ${posClass(i)}">${posLabel(i)}</div>
+  <div class="rank-avatar-sm">${escapeHtml(r.name[0] || '?')}</div>
+ <div class="rank-info">
+  <div class="rank-name">${escapeHtml(r.name)}${isMe ? ' 👈' : ''}</div>
+  <div class="rank-detail">총 ${r.correct}개 적중 · 누적 ${r.total}경기 참여</div>
+</div>
       <div class="rank-right">
         <div class="rank-pct-num">${pct}%</div>
         <div class="rank-bar-wrap"><div class="rank-bar" style="width:${pct}%"></div></div>
@@ -1348,12 +1357,12 @@ function renderAdminUserList() {
     ${list.map(r => {
       const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
       return `<tr style="border-bottom:1px solid var(--border)">
-        <td style="padding:10px 0">${r.name}</td>
-        <td style="text-align:center;color:var(--green)">${r.correct}</td>
-        <td style="text-align:center">${r.total}</td>
-        <td style="text-align:right;color:var(--accent)">${pct}%</td>
-        <td style="text-align:center;"><button class="del-btn" style="padding:3px 8px; font-size:11px;" onclick="deleteUserRecord('${r.name}')">삭제</button></td>
-      </tr>`;
+  <td style="padding:10px 0">${escapeHtml(r.name)}</td>
+  <td style="text-align:center;color:var(--green)">${r.correct}</td>
+  <td style="text-align:center">${r.total}</td>
+       <td style="text-align:right;color:var(--accent)">${pct}%</td>
+<td style="text-align:center;"><button class="del-btn" style="padding:3px 8px; font-size:11px;" onclick='deleteUserRecord(${JSON.stringify(r.name)})'>삭제</button></td>
+</tr>`;
     }).join('')}
   </table>`;
 }
