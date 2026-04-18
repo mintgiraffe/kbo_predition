@@ -943,6 +943,7 @@ function renderAdminUserList() {
       <th style="text-align:center;padding:8px 0;color:var(--text3);font-weight:500">맞힘</th>
       <th style="text-align:center;padding:8px 0;color:var(--text3);font-weight:500">총경기</th>
       <th style="text-align:right;padding:8px 0;color:var(--text3);font-weight:500">적중률</th>
+      <th style="text-align:center;padding:8px 0;color:var(--text3);font-weight:500">관리</th>
     </tr>
     ${list.map(r => {
       const pct = r.total ? Math.round(r.correct / r.total * 100) : 0;
@@ -951,11 +952,32 @@ function renderAdminUserList() {
         <td style="text-align:center;color:var(--green)">${r.correct}</td>
         <td style="text-align:center">${r.total}</td>
         <td style="text-align:right;color:var(--accent)">${pct}%</td>
+        <td style="text-align:center;"><button class="del-btn" style="padding:3px 8px; font-size:11px;" onclick="deleteUserRecord('${r.name}')">삭제</button></td>
       </tr>`;
     }).join('')}
   </table>`;
 }
 
+window.deleteUserRecord = async function(userName) {
+  if (!confirm(`${selectedDateStr()}의 '${userName}'님 예측 기록을 개별 삭제할까요?`)) return;
+  if (!db) { toast('Firebase 연결 필요','error'); return; }
+
+  // Firebase에서 해당 날짜, 해당 유저의 기록만 정확하게 삭제!
+  await remove(ref(db, `${currentKey()}/participants/${userName}`));
+  
+  // 만약 관리자 본인의 기록을 지웠다면, 내 화면의 제출 상태도 다시 풀리게 설정
+  if (userName === myName) {
+    submitted = false;
+    picks = {};
+    mySubmittedPicks = {};
+    document.getElementById('submitBtn').disabled = false;
+    document.getElementById('submitBtn').textContent = '예측 제출하기';
+    renderMatches(); // 화면 새로고침
+  }
+  
+  toast(`${userName}님의 기록이 삭제되었어요!`, 'success');
+};
+  
 window.addMatchEditor = function() {
   const id = matches.length;
   matches.push({
