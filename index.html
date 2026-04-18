@@ -13,6 +13,11 @@
   --text:#f0f2f8; --text2:#9aa3be; --text3:#5a6380;
   --border:rgba(255,255,255,0.06); --border2:rgba(255,255,255,0.12);
 }
+  .team-emoji img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
@@ -412,7 +417,18 @@ import { getDatabase, ref, set, onValue, remove, update, get }
 
 const ADMIN_PW = '1234';
 const TEAM_LIST = ['기아','한화','롯데','삼성','LG','두산','키움','KT','SSG','NC'];
-const EMOJI_MAP = {기아:'🐅',한화:'🔥',롯데:'🦅',삼성:'⚡',LG:'🏆',두산:'🐻',키움:'🎯',KT:'📡',SSG:'🚀',NC:'🦁'};
+const LOGO_MAP = {
+  기아: 'https://i.namu.wiki/i/XDIKbcJg9FhjuobcdHw8VR0R7Pxm0JFlMpNTaLNiWkqpDxNPQAiFrhNUqabNQ7sJbwrM-KpNX5KOresNpviSajbsxCdvsU9E_KmrWr-mYmnag3hYH0mXP65Dj0x2A0KCksfVW80ygilkaxs4kSgJew.svg',
+  한화: 'https://i.namu.wiki/i/ilK5EWMaTtIGpDZcIZKh_9yjMXu6W0-LTYdTpwe6qWmxzr0sMq-OxewbnSiYjYFTN0vjLR0vj8UWfXgI28LoyA.svg',
+  롯데: 'https://i.namu.wiki/i/wG4GvE8siQrm-tR0dYkn0KjZqD5Xq3cNryA_mOgFJLb_ULUhVrZn2zwcs912L-YdlAKsq19FbKhPDQan1UiKt0x0pszz61-NvS4scDL5H0R9EPAIdRORWsgbOgK7zCWrsS3U2fY61Jwkq-goEcENLw.svg',
+  삼성: 'https://i.namu.wiki/i/mD1xlB9Jeh3lh-rXl_QcsXANDQO_40lC2JH6zafri6cp55mC8mH-dW1Nzeh0WLIFztcirkKttHp5kc9l3HYUu2Qr0oj41PMGQpJHckdX2wWweHM9kadtny7UWmHUIFCXTCO0pGZ03pWMpR59UK8tZg.svg',
+  LG: 'https://i.namu.wiki/i/nGcidLTK1ESRDT8tdPXP8lhdg49mhI79tU4RzWlSva0JrIc8-7_zhH1brVP2L9kblKmOktQhq2aKLPGhjWowqrDrid8crg184rmYSHUKsqSoredSx-efL8fccgiPAIv0amYbeyZoIXq-TRzJUZL_iQ.svg',
+  두산: 'https://i.namu.wiki/i/JyufnFFHJ_CvHw7XuYJW-zsCFbKraxnkrddcj3u6LMZY-cxTnrQCteB3fFMAjSCJXtkr_BdgRLicPDVUAaUiq4CHgfP1vQgNNF8WtgT1iuYsLNRUrM-cTPOJykJWZcfqP3O4zfNFqnft2o6MRyaAaA.svg',
+  키움: 'https://i.namu.wiki/i/BZjWX1TQOFkfwF7eai0BMJb40VSHNlBcoo_wpg5orNJgO_JVMu41ry7wk7w8xhjIJAvTkMTvNmMNWG3D1WIt4BkBvDoxa-jvJC0BmWo8mkAzM65jhI6BKMXG8-xSmMyeBpAl0rBtycGiJ6JooRCAwg.svg',
+  KT: 'https://i.namu.wiki/i/FJDOcoJCXngQCNhRrY6eDBpDpdqXwpk5UKQQh9O6l1c78ryI2Wz0qRJuXNfvgL6RcsKcn-bHKjv96-YvxTmmWg.svg',
+  SSG: 'https://i.namu.wiki/i/13aK0crf1mQUR4AjoziTjOwfygU9QeL6Iohfs92PzkjaJH82_nfkNBpd1HFIV9hU3CRAKbJmMWp289w7jUgWVuJ-pA_Y9dd_Fap5WY2vaiadaRq4y_KuknS18D3Pfy2xURyFk-NUs1OYSEllium1kw.svg',
+  NC: 'https://i.namu.wiki/i/-H-g8S2z52NOBD4TaJAsc8MaAX78vhWv4RSh_F1UEp1Vrpa9P8fynyefsUdI2pQg-Tbc2ZI_EqEusCaIwwFpTkCtu_EKXA0yGstSYvCd3RkwrfTU5hlyEE_jQvZjOUDMcVIySMkd2pPtancCve3t-Q.svg'
+};
 
 let db = null;
 let matches = [];
@@ -746,13 +762,17 @@ function renderMatches() {
       </div>
       <div class="teams-grid">
         <div class="team-pick ${picks[m.id] === m.team1 ? 'selected' : ''}" onclick="pick(${m.id},'${m.team1}')">
-          <div class="team-emoji">${m.emoji1}</div>
+          <div class="team-emoji">
+  <img src="${LOGO_MAP[m.team1]}" alt="${m.team1}" class="team-logo">
+</div>
           <div class="team-nm">${m.team1}</div>
           <div class="pitcher-info">${m.pitcher1 ? '선발 ' + m.pitcher1 : '선발 미정'}</div>
         </div>
         <div class="vs-col"><div class="vs-circle">VS</div></div>
         <div class="team-pick ${picks[m.id] === m.team2 ? 'selected' : ''}" onclick="pick(${m.id},'${m.team2}')">
-          <div class="team-emoji">${m.emoji2}</div>
+          <div class="team-emoji">
+  <img src="${LOGO_MAP[m.team2]}" alt="${m.team2}" class="team-logo">
+</div>
           <div class="team-nm">${m.team2}</div>
           <div class="pitcher-info">${m.pitcher2 ? '선발 ' + m.pitcher2 : '선발 미정'}</div>
         </div>
@@ -1173,9 +1193,7 @@ window.applyMatches = function() {
     const t1 = document.getElementById(`me-t1-${i}`)?.value || '';
     const t2 = document.getElementById(`me-t2-${i}`)?.value || '';
     m.team1 = t1;
-    m.emoji1 = EMOJI_MAP[t1] || '⚾';
     m.team2 = t2;
-    m.emoji2 = EMOJI_MAP[t2] || '⚾';
     m.pitcher1 = document.getElementById(`me-p1-${i}`)?.value.trim() || '';
     m.pitcher2 = document.getElementById(`me-p2-${i}`)?.value.trim() || '';
     m.time = document.getElementById(`me-time-${i}`)?.value || m.time;
