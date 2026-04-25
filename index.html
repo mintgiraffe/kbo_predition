@@ -1157,11 +1157,17 @@ function renderRanking() {
 
       let resultHtml = '<span style="font-size:11px;color:var(--text3);">대기</span>';
 
-      if (m.result) {
-        const isCorrect = m.result === pickedTeam;
-        resultHtml = isCorrect
-          ? '<span style="font-size:11px;color:var(--green);font-weight:700;">적중</span>'
-          : '<span style="font-size:11px;color:var(--red);font-weight:700;">오답</span>';
+if (m.result) {
+        if (m.result === '무승부') {
+          resultHtml = '<span style="font-size:11px;color:var(--text2);font-weight:700;">무승부</span>';
+        } else if (m.result === '경기취소') {
+          resultHtml = '<span style="font-size:11px;color:var(--text2);font-weight:700;">취소</span>';
+        } else {
+          const isCorrect = m.result === pickedTeam;
+          resultHtml = isCorrect
+            ? '<span style="font-size:11px;color:var(--green);font-weight:700;">적중</span>'
+            : '<span style="font-size:11px;color:var(--red);font-weight:700;">오답</span>';
+        }
       }
 
 return `
@@ -1250,10 +1256,16 @@ function renderHistory() {
     const myPick = myPicks[m.id];
     if (!myPick) return '';
 
-    let lbl = '<span class="pick-result pending">결과 대기</span>';
+let lbl = '<span class="pick-result pending">결과 대기</span>';
     if (m.result) {
-      const ok = m.result === myPick;
-      lbl = `<span class="pick-result ${ok ? 'win' : 'loss'}">${ok ? '✓ 적중' : '✗ 오답'}</span>`;
+      if (m.result === '무승부') {
+        lbl = `<span class="pick-result" style="background:var(--bg3);color:var(--text2)">무승부</span>`;
+      } else if (m.result === '경기취소') {
+        lbl = `<span class="pick-result" style="background:var(--bg3);color:var(--text2)">경기취소</span>`;
+      } else {
+        const ok = m.result === myPick;
+        lbl = `<span class="pick-result ${ok ? 'win' : 'loss'}">${ok ? '✓ 적중' : '✗ 오답'}</span>`;
+      }
     }
 
     return `<div class="history-pick">
@@ -1386,6 +1398,8 @@ function renderAdminPanel() {
         <option value="">결과 미정</option>
         ${m.team1 ? `<option value="${m.team1}" ${m.result === m.team1 ? 'selected' : ''}>${m.team1} 승</option>` : ''}
         ${m.team2 ? `<option value="${m.team2}" ${m.result === m.team2 ? 'selected' : ''}>${m.team2} 승</option>` : ''}
+        <option value="무승부" ${m.result === '무승부' ? 'selected' : ''}>무승부</option>
+        <option value="경기취소" ${m.result === '경기취소' ? 'selected' : ''}>경기 취소</option>
       </select>
     </div>`).join('');
 
