@@ -500,8 +500,9 @@ textarea{resize:vertical;min-height:56px}
       </button>
     </div>
   
-    <div class="section-header">
+<div class="section-header" style="flex-wrap: wrap;">
       <div class="section-title">오늘의 경기</div>
+      <div id="countdownDisplay" style="font-size:12px; color:var(--accent); font-weight:700; margin-left:auto; margin-right:10px;"></div>
       <div class="section-count" id="matchCountLabel">0 / 0</div>
     </div>
     <div id="matchList"></div>
@@ -614,7 +615,10 @@ textarea{resize:vertical;min-height:56px}
       <div class="admin-section">
         <div class="admin-section-title">⚾ 경기 편집</div>
         <div id="matchEditorList"></div>
-        <button class="add-match-btn" onclick="addMatchEditor()">+ 경기 추가</button>
+        <div style="display:flex; gap:8px;">
+          <button class="add-match-btn" onclick="addMatchEditor()">+ 1경기 추가</button>
+          <button class="add-match-btn" style="border-color:var(--accent); color:var(--accent);" onclick="addFiveMatches()">+ KBO 5경기 일괄 생성</button>
+        </div>
         <button class="apply-btn" onclick="applyMatches()">변경사항 적용</button>
       </div>
       <div class="admin-section">
@@ -993,6 +997,47 @@ function getPickRatio(matchId) {
 }
 
 // ── MATCHES
+  let countdownInterval = null;
+
+function updateCountdown() {
+  const displayEl = document.getElementById('countdownDisplay');
+  if (!displayEl) return;
+
+  if (!matches || matches.length === 0) {
+    displayEl.textContent = '';
+    return;
+  }
+
+  const now = new Date();
+  let earliestMatchTime = null;
+
+  // 가장 빨리 시작하는(아직 안 지나간) 경기 시간 찾기
+  for (const m of matches) {
+    const matchTime = getMatchDateTime(m);
+    if (matchTime > now) {
+      if (!earliestMatchTime || matchTime < earliestMatchTime) {
+        earliestMatchTime = matchTime;
+      }
+    }
+  }
+
+  // 남은 경기가 없으면 마감 표시
+  if (!earliestMatchTime) {
+    displayEl.textContent = '오늘 예측 마감';
+    displayEl.style.color = 'var(--text3)';
+    return;
+  }
+
+  // 시간 계산
+  const diff = earliestMatchTime - now;
+  const h = Math.floor(diff / (1000 * 60 * 60));
+  const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+  displayEl.textContent = `⏳ 예측 마감까지 ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  displayEl.style.color = 'var(--accent)';
+}
+  
 function renderMatches() {
   document.getElementById('matchList').innerHTML = matches.map(m => {
     const ratio = getPickRatio(m.id);
@@ -1046,6 +1091,10 @@ function renderMatches() {
   updatePickCount();
   document.getElementById('statMatches').textContent = matches.length;
   updateSubmitButtonState();
+
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdownInterval = setInterval(updateCountdown, 1000);
+  updateCountdown();
 }
 
 window.pick = function(matchId, team) {
@@ -1473,6 +1522,19 @@ window.addMatchEditor = function() {
     result:null
   });
   renderAdminPanel();
+};
+
+window.addFiveMatches = function() {
+  for(let i=0; i<5; i++) {
+    matches.push({
+      id: matches.length,
+      team1:'', emoji1:'⚾', pitcher1:'',
+      team2:'', emoji2:'⚾', pitcher2:'',
+      time:'18:30', stadium:'', result:null
+    });
+  }
+  renderAdminPanel();
+  toast('5경기가 일괄 추가되었습니다!', 'success');
 };
 
 window.delMatch = function(i) {
