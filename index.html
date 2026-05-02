@@ -617,7 +617,6 @@ textarea{resize:vertical;min-height:56px}
         <div id="matchEditorList"></div>
         <div style="display:flex; gap:8px;">
           <button class="add-match-btn" onclick="addMatchEditor()">+ 1경기 추가</button>
-          <button class="add-match-btn" style="border-color:var(--accent); color:var(--accent);" onclick="addFiveMatches()">+ KBO 5경기 일괄 생성</button>
         </div>
         <button class="apply-btn" onclick="applyMatches()">변경사항 적용</button>
       </div>
@@ -1111,9 +1110,11 @@ window.pick = function(matchId, team) {
 };
 
 function updatePickCount() {
-  const n = Object.keys(picks).length;
-  document.getElementById('matchCountLabel').textContent = `${n} / ${matches.length}`;
-  document.getElementById('statPicked').textContent = n;
+  const openMatches = matches.filter(m => !isMatchClosed(m));
+  const openPickCount = openMatches.filter(m => picks[m.id]).length;
+
+  document.getElementById('matchCountLabel').textContent = `${openPickCount} / ${openMatches.length}`;
+  document.getElementById('statPicked').textContent = Object.keys(picks).length;
 }
 
 function updateSubmitButtonState() {
@@ -1135,38 +1136,43 @@ function updateSubmitButtonState() {
 // ── SUBMIT
 window.submitPrediction = async function() {
   if (!db) { toast('Firebase가 연결되지 않았어요','error'); return; }
-    if (!isLoggedIn) {
+  if (!isLoggedIn) {
     toast('먼저 로그인하세요', 'error');
     return;
   }
 
-  const allClosed = matches.length > 0 && matches.every(m => isMatchClosed(m));
-if (allClosed) {
-  toast('모든 경기의 예측 마감 시간이 지났어요', 'error');
-  return;
-}
-  
-  const name = myName;
-  if (!myName) { toast('로그인 먼저 해주세요!','error'); return; }
-  if (Object.keys(picks).length < matches.length) {
-    toast(`${matches.length - Object.keys(picks).length}경기 예측이 더 필요해요`,'error');
+  const openMatches = matches.filter(m => !isMatchClosed(m));
+  if (openMatches.length === 0) {
+    toast('모든 경기의 예측 마감 시간이 지났어요', 'error');
     return;
   }
 
+  const name = myName;
+  if (!myName) { toast('로그인 먼저 해주세요!','error'); return; }
+
+  const missingOpenMatches = openMatches.filter(m => !picks[m.id]);
+  if (missingOpenMatches.length > 0) {
+    toast(`${missingOpenMatches.length}경기 예측이 더 필요해요`,'error');
+    return;
+  }
+
+  const existing = rankings[name] || {};
+
+  // 이미 제출했던 예측은 유지하고, 아직 시작하지 않은 경기 예측만 새로 반영합니다.
+  // 예: 14:00 경기는 마감, 17:00 경기는 진행 전이면 17:00 경기만 선택/수정 가능.
+  const finalPicks = { ...(existing.picks || {}), ...picks };
+
   myName = name;
-  mySubmittedPicks = { ...picks };
+  mySubmittedPicks = { ...finalPicks };
   submitted = true;
   document.getElementById('submitBtn').disabled = false;
-document.getElementById('submitBtn').textContent = '예측 제출하기';
-
-  const existing = rankings[name];
-  const correct = existing ? existing.correct : 0;
+  document.getElementById('submitBtn').textContent = '예측 제출하기';
 
   await set(ref(db, `${currentKey()}/participants/${name}`), {
     name,
     pw: myPw,
-    correct,
-    total: matches.length,
+    correct: existing.correct || 0,
+    total: Object.keys(finalPicks).length,
     picks: mySubmittedPicks,
     submittedAt: Date.now()
   });
@@ -1605,18 +1611,22 @@ window.saveResults = async function() {
   saveMatchesToDB();
 
   const updatesObj = {};
-  
-  // 💡 추가된 부분: 무승부나 취소된 경기가 몇 개인지 파악해서 총 경기 수(total)에서 빼줍니다.
-  const excludedCount = matches.filter(m => m.result === '무승부' || m.result === '경기취소').length;
-  const newTotal = matches.length - excludedCount;
 
   Object.values(rankings).forEach(r => {
-    // 맞힌 개수 계산 (무승부/취소는 어차피 일치하지 않으므로 자동으로 카운트 안 됨)
-    const correct = matches.filter(m => m.result && r.picks && r.picks[m.id] === m.result).length;
-    
-    // 점수 및 보정된 총 경기 수 업데이트
+    const userPicks = r.picks || {};
+
+    // 무승부/취소는 총 경기 수에서 제외합니다.
+    // 늦게 참여해서 17:00 경기만 예측한 사람은 예측한 경기만 total에 반영됩니다.
+    const scoredMatches = matches.filter(m =>
+      m.result !== '무승부' &&
+      m.result !== '경기취소' &&
+      userPicks[m.id]
+    );
+
+    const correct = scoredMatches.filter(m => m.result && userPicks[m.id] === m.result).length;
+
     updatesObj[`${currentKey()}/participants/${r.name}/correct`] = correct;
-    updatesObj[`${currentKey()}/participants/${r.name}/total`] = newTotal > 0 ? newTotal : 0; 
+    updatesObj[`${currentKey()}/participants/${r.name}/total`] = scoredMatches.length;
   });
 
   if (Object.keys(updatesObj).length > 0) {
